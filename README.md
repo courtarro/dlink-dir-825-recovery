@@ -4,7 +4,9 @@ Flash older D-Link routers through their emergency (recovery) web interface.
 
 The router's recovery page is a very small HTTP server with a tiny TCP stack, so it only works if the upload is sent slowly, in small chunks, with no other traffic getting in the way. This tool does exactly that.
 
-These instructions are for Linux exclusively.
+These instructions are exclusively for Linux-based hosts.
+
+Note that this process worked in a DIR-825 B1 with the latest [OpenWRT 19 'backup loader' firmware](https://archive.openwrt.org/releases/19.07.9/targets/ar71xx/generic/openwrt-19.07.9-ar71xx-generic-dir-825-b1-squashfs-backup-loader.bin). Details for [OpenWRT on this hardware](https://openwrt.org/toh/d-link/dir-825).
 
 ## Build
 
@@ -116,4 +118,4 @@ Nothing here survives a reboot: the namespace lives in `/run/netns` (tmpfs), the
 
 ## License
 
-GPL v3 or later. Original code copyright 2014 Daniel Dickinson with enhancements by Ethan Trewhitt.
+GPL v3 or later. Original code Copyright 2014 Daniel Dickinson with enhancements by Ethan Trewhitt.
