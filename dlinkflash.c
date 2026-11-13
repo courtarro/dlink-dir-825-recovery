@@ -33,10 +33,11 @@
 #include <errno.h>
 #include <fcntl.h>
 
-#define ROUTER_IP        "192.168.0.1"
-#define CHUNK_SIZE       512
-#define GET_RECV_TIMEOUT 5   /* seconds of silence before we assume the page is complete */
-#define POST_RECV_TIMEOUT 60 /* seconds to wait for the router's reply after upload */
+#define ROUTER_IP           "192.168.0.1"
+#define CHUNK_SIZE          512
+#define GET_RECV_TIMEOUT    5       /* seconds of silence before we assume the page is complete */
+#define POST_RECV_TIMEOUT   60      /* seconds to wait for the router's reply after upload */
+#define PACKET_DELAY_US     30000   /* microseconds to delay after each firmware packet is sent */
 
 static void die_oom(void) {
     fprintf(stderr, "Out of memory\n");
@@ -305,7 +306,7 @@ int main(int argc, char *argv[]) {
         free(post);
         exit(7);
     }
-    if (send_all(sock, post, postlen, "Upload", 5000, debug) < 0) {
+    if (send_all(sock, post, postlen, "Upload", PACKET_DELAY_US, debug) < 0) {
         perror("send");
         close(sock);
         free(post);

@@ -35,7 +35,7 @@ Before running it:
    - A plain `GET /` (the recovery page).
    - A `POST /cgi/index` with a `multipart/form-data` body containing the firmware. Headers imitate IE6 on Windows 98, which is what the recovery page expects. `Content-Length` is deliberately one byte larger than the real body (an old IE6 quirk the router seems to rely on).
 3. **Phase 1: GET.** Connect to `192.168.0.1:80`, send the GET, and read the page until the router closes the connection or goes quiet for 5 seconds. This puts the router in a state where it will accept the upload.
-4. **Phase 2: POST.** Open a fresh connection and send the POST in 512-byte chunks with a 5 ms pause after each chunk, so the router can keep up. Sockets are set up with a small MSS, send/receive buffer and window clamp for the same reason.
+4. **Phase 2: POST.** Open a fresh connection and send the POST in 512-byte chunks with a 30 ms pause after each chunk, so the router can keep up. Sockets are set up with a small MSS, send/receive buffer and window clamp for the same reason.
 5. **Check the result.** Read the router's reply (up to 60 seconds). If it contains `count_down`, the router accepted the image and is rebooting. Otherwise the reply is printed and the tool exits with an error.
 
 ### Exit codes
@@ -59,9 +59,11 @@ Replace `enp3s0` with your interface name (`ip -br link` lists them).
 ### Set up an isolated network namespace
 
 ```bash
+export NIC=enp3s0
+
 # Stop NetworkManager from managing the NIC (runtime only)
-sudo nmcli dev set enp3s0 managed no
-sudo ip link set enp3s0 down
+sudo nmcli dev set $NIC managed no
+sudo ip link set $NIC down
 
 # Create the namespace and disable IPv6 in it before the NIC arrives
 sudo ip netns add dlink
@@ -69,10 +71,16 @@ sudo ip netns exec dlink sysctl -qw \
     net.ipv6.conf.all.disable_ipv6=1 net.ipv6.conf.default.disable_ipv6=1
 
 # Move the NIC in and configure it
-sudo ip link set enp3s0 netns dlink
-sudo ip -n dlink addr add 192.168.0.2/24 dev enp3s0
+sudo ip link set $NIC netns dlink
+sudo ip -n dlink addr add 192.168.0.2/24 dev $NIC
 sudo ip -n dlink link set lo up
-sudo ip -n dlink link set enp3s0 up
+sudo ip -n dlink link set $NIC up
+```
+
+### Test the isolated network connection
+
+```bash
+sudo ip netns exec dlink ping 192.168.0.1
 ```
 
 ### Flash
@@ -86,13 +94,17 @@ sudo ip netns exec dlink ./dlinkflash firmware.bin -d
 Live in Wireshark (capture runs in the namespace, GUI runs as you):
 
 ```bash
-sudo ip netns exec dlink dumpcap -q -i enp3s0 -w - | wireshark -k -i -
+export NIC=enp3s0
+
+sudo ip netns exec dlink dumpcap -q -i $NIC -w - | wireshark -k -i -
 ```
 
 Or capture to a file and open it afterwards:
 
 ```bash
-sudo ip netns exec dlink dumpcap -i enp3s0 -w /tmp/dl.pcapng   # Ctrl-C to stop
+export NIC=enp3s0
+
+sudo ip netns exec dlink dumpcap -i $NIC -w /tmp/dl.pcapng   # Ctrl-C to stop
 sudo chown $USER /tmp/dl.pcapng
 wireshark /tmp/dl.pcapng
 ```
@@ -103,9 +115,14 @@ To see where an upload stalls, open the capture and use
 ### Tear down
 
 ```bash
+export NIC=enp3s0
+
 sudo ip netns del dlink                 # NIC returns to the main namespace
-sudo nmcli dev set enp3s0 managed yes
+sleep 1
+sudo nmcli dev set $NIC managed yes
 ```
+
+If this teardown fails on the second step with something like `Error: Device 'enp3s0' not found.`, then you probably still have something running in the `dlink` namespace. Did you leave `ping` or Wireshark running?
 
 Nothing here survives a reboot: the namespace lives in `/run/netns` (tmpfs), the NIC returns to the main namespace at boot, and `nmcli dev set ... managed` is runtime-only.
 
@@ -113,7 +130,7 @@ Nothing here survives a reboot: the namespace lives in `/run/netns` (tmpfs), the
 
 - **"connect: No route to host" / timeout:** the NIC has no 192.168.0.x address, or the router isn't in recovery mode.
 - **Hangs after "Finished sending GET":** the router isn't answering; it times out after 5 seconds and continues.
-- **Upload stalls partway:** other traffic on the link, or the router needs a slower rate. Raise the `usleep(5000)` delay (the `5000` passed to `send_all` for the upload in `main`).
+- **Upload stalls partway:** other traffic on the link, or the router needs a slower rate. Raise the packet delay (the `30000` defined as `PACKET_DELAY_US` at the top of the C source file).
 - **"Error sending firmware" and a printed reply:** the router rejected the image; check that the file is the correct firmware for your exact model and hardware revision.
 
 ## License
